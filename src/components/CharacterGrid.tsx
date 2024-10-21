@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 
 interface Character {
@@ -7,128 +8,139 @@ interface Character {
 }
 
 interface Info {
-  next: string | null;
-  prev: string | null;
-  pages: number; // Total pages
+  next: number | null;  // Change type to number | null
+  prev: number | null;  // Change type to number | null
+  pages: number;
 }
 
-const CharacterGrid: React.FC = () => {
+interface Props {
+  selectedEpisode: number | null;
+}
+
+const CharacterGrid: React.FC<Props> = ({ selectedEpisode }) => {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [info, setInfo] = useState<Info>({ next: null, prev: null, pages: 0 });
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchCharacters = async (url: string) => {
-    setLoading(true);
-    setError(null); // Reset error state
+  const fetchCharactersForEpisode = async (episodeId: number, page: number) => {
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch characters');
-      }
-      const data = await response.json();
-      setCharacters(data.results);
-      setInfo(data.info);
-    } catch (err) {
-      setError(err.message);
+      setLoading(true);
+      const response = await fetch(`https://rickandmortyapi.com/api/episode/${episodeId}`);
+      const episodeData = await response.json();
+
+      const characterData = await Promise.all(
+        episodeData.characters.map((url: string) => fetch(url).then((res) => res.json()))
+      );
+
+      const charactersPerPage = 20;
+      const paginatedCharacters = characterData.slice((page - 1) * charactersPerPage, page * charactersPerPage);
+      setCharacters(paginatedCharacters);
+
+      setInfo({
+        next: page < Math.ceil(characterData.length / charactersPerPage) ? page + 1 : null,
+        prev: page > 1 ? page - 1 : null,
+        pages: Math.ceil(characterData.length / charactersPerPage),
+      });
+    } catch (error) {
+      console.error('Error fetching characters:', error);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCharacters(`https://rickandmortyapi.com/api/character?page=${currentPage}`);
+    if (selectedEpisode) {
+      setCurrentPage(1);
+      fetchCharactersForEpisode(selectedEpisode, 1);
+    }
+  }, [selectedEpisode]);
+
+  useEffect(() => {
+    if (selectedEpisode) {
+      fetchCharactersForEpisode(selectedEpisode, currentPage);
+    }
   }, [currentPage]);
 
   const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= info.pages) {
-      setCurrentPage(page);
-    }
+    setCurrentPage(page);
   };
-
-  // Render pagination
   const renderPagination = () => {
-    const pages = info.pages;
-    let paginationItems: JSX.Element[] = [];
+    const pages = [];
+    const totalPages = info.pages;
 
-    // Determine the range of pages to display
-    const startPage = Math.max(1, currentPage - 1);
-    const endPage = Math.min(pages, currentPage + 1);
-
-    if (pages <= 3) {
-      // If total pages are 3 or less, display all pages
-      for (let i = 1; i <= pages; i++) {
-        paginationItems.push(
+    if (totalPages <= 3) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(
           <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
-            <button className="page-link" onClick={() => handlePageChange(i)}>
-              {i}
-            </button>
+            <button className="page-link" onClick={() => handlePageChange(i)}>{i}</button>
           </li>
         );
       }
     } else {
-      // Add the first page
-      paginationItems.push(
+      pages.push(
         <li key={1} className={`page-item ${currentPage === 1 ? 'active' : ''}`}>
-          <button className="page-link" onClick={() => handlePageChange(1)}>
-            1
-          </button>
+          <button className="page-link" onClick={() => handlePageChange(1)}>1</button>
         </li>
       );
 
-      // Show the middle pages
-      if (startPage > 2) {
-        paginationItems.push(<li key="ellipsis-start" className="page-item disabled"><span className="page-link">...</span></li>);
+      if (currentPage > 2) {
+        pages.push(<li key="start-ellipsis" className="page-item disabled"><span className="page-link">...</span></li>);
       }
-      
-      for (let i = startPage; i <= endPage; i++) {
-        if (i > 1 && i < pages) { // Only show middle pages
-          paginationItems.push(
-            <li key={i} className={`page-item ${currentPage === i ? 'active' : ''}`}>
-              <button className="page-link" onClick={() => handlePageChange(i)}>
-                {i}
+
+      if (currentPage > 1 && currentPage < totalPages) {
+        pages.push(
+          <li key={currentPage} className="page-item active">
+            <button className="page-link">{currentPage}</button>
+          </li>
+        );
+
+        if (currentPage + 1 < totalPages) {
+          pages.push(
+            <li key={currentPage + 1} className="page-item">
+              <button className="page-link" onClick={() => handlePageChange(currentPage + 1)}>
+                {currentPage + 1}
               </button>
             </li>
           );
         }
       }
 
-      // Add the last page
-      if (endPage < pages) {
-        paginationItems.push(<li key="ellipsis-end" className="page-item disabled"><span className="page-link">...</span></li>);
-        paginationItems.push(
-          <li key={pages} className={`page-item ${currentPage === pages ? 'active' : ''}`}>
-            <button className="page-link" onClick={() => handlePageChange(pages)}>
-              {pages}
-            </button>
-          </li>
-        );
+      if (currentPage + 1 < totalPages - 1) {
+        pages.push(<li key="end-ellipsis" className="page-item disabled"><span className="page-link">...</span></li>);
       }
+
+      pages.push(
+        <li key={totalPages} className={`page-item ${currentPage === totalPages ? 'active' : ''}`}>
+          <button className="page-link" onClick={() => handlePageChange(totalPages)}>{totalPages}</button>
+        </li>
+      );
     }
 
-    return paginationItems;
+    return pages;
   };
 
   return (
-    <div className="col-md-9 col-sm-12 p-3" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Scrollable Character Grid */}
-      <div className="row flex-grow-1 overflow-auto">
-        {loading && <p>Loading...</p>}
-        {error && <p>Error: {error}</p>}
-        {characters.map((character) => (
-          <div key={character.id} className="col-md-4 col-sm-6 mb-4">
-            <div className="card">
-              <img src={character.image} alt={character.name} className="card-img-top" />
-              <div className="card-body">
-                <h5 className="card-title">{character.name}</h5>
+    <div className="col-md-9 col-sm-12 overflow-auto" style={{height:"100vh"}}>
+      {loading ? (
+        <div>Loading...</div>
+      ) : characters.length > 0 ? (
+        <div className="row flex-grow-1 overflow-auto">
+          {characters.map((character) => (
+            <div key={character.id} className="col-md-4 col-sm-6 col-xs-12 mb-4">
+              <div className="card">
+                <img src={character.image} alt={character.name} className="card-img-top" />
+                <div className="card-body">
+                  <h5 className="card-title">{character.name}</h5>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div>No characters found</div>
+      )}
 
-      {/* Pagination fixed at the bottom */}
       <div className="mt-3">
         <nav aria-label="Page navigation" className="w-100">
           <ul className="pagination justify-content-center flex-wrap">
@@ -138,22 +150,18 @@ const CharacterGrid: React.FC = () => {
                 className="page-link"
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={!info.prev}
-                aria-label="Previous"
               >
                 Previous
               </button>
             </li>
 
-            {/* Render Pagination Items */}
             {renderPagination()}
 
-            {/* Next Button */}
             <li className={`page-item ${!info.next ? 'disabled' : ''}`}>
               <button
                 className="page-link"
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={!info.next}
-                aria-label="Next"
               >
                 Next
               </button>
