@@ -1,0 +1,30 @@
+.pagination {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .page-item {
+    margin: 0 5px;
+  }
+  
+  .list-group-item {
+    cursor: pointer;
+  }
+  
+  @media (max-width: 576px) {
+    .pagination {
+      flex-wrap: wrap;
+    }
+  
+    .pagination .page-item {
+      margin-bottom: 0.5rem;
+    }
+  }
+  .overflow-auto {
+    overflow-y: auto;
+  }
+  
+  ul.list-group {
+    max-height: calc(100vh - 100px);
+  }
+  
